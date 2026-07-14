@@ -32,28 +32,67 @@ app.use(
     },
   })
 );
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://taxiservice-seven.vercel.app",
+  "https://taxiservicechittorgarh.com",
+  "https://www.taxiservicechittorgarh.com",
+];
 
-app.use(
-  cors({
-    origin:
-      process.env.FRONTEND_URL ||
-      "http://localhost:5173",
-    credentials: true,
-    methods: [
-      "GET",
-      "POST",
-      "PUT",
-      "PATCH",
-      "DELETE",
-      "OPTIONS",
-    ],
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-    ],
-  })
-);
+function isAllowedOrigin(origin) {
+  if (!origin) {
+    return true;
+  }
 
+  if (allowedOrigins.includes(origin)) {
+    return true;
+  }
+
+  // Vercel preview URLs allow karega
+  try {
+    const url = new URL(origin);
+
+    return (
+      url.protocol === "https:" &&
+      url.hostname.endsWith(".vercel.app") &&
+      url.hostname.startsWith("taxiservice-")
+    );
+  } catch {
+    return false;
+  }
+}
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
+
+    console.error("CORS blocked origin:", origin);
+
+    return callback(
+      new Error(`CORS blocked: ${origin}`)
+    );
+  },
+
+  credentials: true,
+
+  methods: [
+    "GET",
+    "POST",
+    "PUT",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+  ],
+
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+  ],
+};
+
+app.use(cors(corsOptions));
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000,
