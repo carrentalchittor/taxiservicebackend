@@ -1,9 +1,16 @@
-const router = require("express").Router();
+const router =
+  require("express").Router();
 
 const Car = require("../models/Car");
-const auth = require("../middleware/auth");
-const admin = require("../middleware/admin");
-const upload = require("../middleware/upload");
+
+const auth =
+  require("../middleware/auth");
+
+const admin =
+  require("../middleware/admin");
+
+const upload =
+  require("../middleware/upload");
 
 const {
   uploadBuffer,
@@ -22,51 +29,107 @@ function getVehicleType(value) {
     .toLowerCase();
 }
 
-function getBooleanValue(value, defaultValue = true) {
-  if (value === undefined || value === null) {
+function getBooleanValue(
+  value,
+  defaultValue = true
+) {
+  if (
+    value === undefined ||
+    value === null
+  ) {
     return defaultValue;
   }
 
   return (
     value === true ||
-    String(value).toLowerCase() === "true"
+    String(value).toLowerCase() ===
+      "true"
   );
 }
 
-// GET ALL AVAILABLE VEHICLES
-router.get("/", async (req, res, next) => {
-  try {
-    const cars = await Car.find({
-      available: true,
-    }).sort({
-      createdAt: -1,
-    });
+/**
+ * PUBLIC: GET AVAILABLE VEHICLES
+ *
+ * Projection:
+ * Sirf home page ke required fields return honge.
+ *
+ * lean():
+ * Mongoose documents ki jagah plain objects milenge,
+ * isliye response fast hoga.
+ *
+ * Cache-Control:
+ * Browser/proxy cached response use kar sakte hain.
+ */
+router.get(
+  "/",
+  async (req, res, next) => {
+    try {
+      const cars = await Car.find(
+        {
+          available: true,
+        },
+        {
+          name: 1,
+          brand: 1,
+          vehicleType: 1,
+          type: 1,
+          seats: 1,
+          pricePerDay: 1,
+          fuel: 1,
+          transmission: 1,
+          description: 1,
+          image: 1,
+          available: 1,
+          createdAt: 1,
+        }
+      )
+        .sort({
+          createdAt: -1,
+        })
+        .lean();
 
-    res.json(cars);
-  } catch (error) {
-    next(error);
+      res.set({
+        "Cache-Control":
+          "public, max-age=60, s-maxage=300, stale-while-revalidate=600",
+      });
+
+      return res.json(cars);
+    } catch (error) {
+      return next(error);
+    }
   }
-});
+);
 
-// GET ALL VEHICLES FOR ADMIN
+/**
+ * ADMIN: GET ALL VEHICLES
+ */
 router.get(
   "/admin/all",
   auth,
   admin,
   async (req, res, next) => {
     try {
-      const cars = await Car.find({}).sort({
-        createdAt: -1,
-      });
+      const cars = await Car.find({})
+        .sort({
+          createdAt: -1,
+        })
+        .lean();
 
-      res.json(cars);
+      res.set(
+        "Cache-Control",
+        "no-store"
+      );
+
+      return res.json(cars);
     } catch (error) {
-      next(error);
+      return next(error);
     }
   }
 );
 
-// ADD VEHICLE
+/**
+ * ADMIN: ADD VEHICLE
+ */
 router.post(
   "/",
   auth,
@@ -88,18 +151,22 @@ router.post(
         req.body.seats || 5
       );
 
-      const vehicleType = getVehicleType(
-        req.body.vehicleType
-      );
+      const vehicleType =
+        getVehicleType(
+          req.body.vehicleType
+        );
 
       if (!name) {
         return res.status(400).json({
-          message: "Vehicle name is required",
+          message:
+            "Vehicle name is required",
         });
       }
 
       if (
-        !Number.isFinite(pricePerDay) ||
+        !Number.isFinite(
+          pricePerDay
+        ) ||
         pricePerDay < 0
       ) {
         return res.status(400).json({
@@ -132,14 +199,16 @@ router.post(
 
       if (!req.file) {
         return res.status(400).json({
-          message: "Vehicle image is required",
+          message:
+            "Vehicle image is required",
         });
       }
 
-      uploadedImage = await uploadBuffer(
-        req.file.buffer,
-        "ridego-bike-taxi/vehicles"
-      );
+      uploadedImage =
+        await uploadBuffer(
+          req.file.buffer,
+          "ridego-bike-taxi/vehicles"
+        );
 
       const car = await Car.create({
         name,
@@ -170,7 +239,8 @@ router.post(
           req.body.description || ""
         ).trim(),
 
-        image: uploadedImage.secure_url,
+        image:
+          uploadedImage.secure_url,
 
         imagePublicId:
           uploadedImage.public_id,
@@ -181,11 +251,18 @@ router.post(
         ),
       });
 
-      res.status(201).json(car);
+      res.set(
+        "Cache-Control",
+        "no-store"
+      );
+
+      return res
+        .status(201)
+        .json(car);
     } catch (error) {
-      // MongoDB save fail ho jaye to
-      // uploaded Cloudinary image delete kar do
-      if (uploadedImage?.public_id) {
+      if (
+        uploadedImage?.public_id
+      ) {
         try {
           await deleteCloudinaryImage(
             uploadedImage.public_id
@@ -198,12 +275,14 @@ router.post(
         }
       }
 
-      next(error);
+      return next(error);
     }
   }
 );
 
-// UPDATE VEHICLE
+/**
+ * ADMIN: UPDATE VEHICLE
+ */
 router.put(
   "/:id",
   auth,
@@ -213,13 +292,15 @@ router.put(
     let newUploadedImage = null;
 
     try {
-      const car = await Car.findById(
-        req.params.id
-      ).select("+imagePublicId");
+      const car =
+        await Car.findById(
+          req.params.id
+        ).select("+imagePublicId");
 
       if (!car) {
         return res.status(404).json({
-          message: "Vehicle not found",
+          message:
+            "Vehicle not found",
         });
       }
 
@@ -240,29 +321,36 @@ router.put(
           newUploadedImage.public_id;
       }
 
-      if (req.body.name !== undefined) {
+      if (
+        req.body.name !== undefined
+      ) {
         const name = String(
           req.body.name
         ).trim();
 
         if (!name) {
-          return res.status(400).json({
-            message:
-              "Vehicle name empty nahi ho sakta",
-          });
+          return res
+            .status(400)
+            .json({
+              message:
+                "Vehicle name empty nahi ho sakta",
+            });
         }
 
         car.name = name;
       }
 
-      if (req.body.brand !== undefined) {
+      if (
+        req.body.brand !== undefined
+      ) {
         car.brand = String(
           req.body.brand
         ).trim();
       }
 
       if (
-        req.body.vehicleType !== undefined
+        req.body.vehicleType !==
+        undefined
       ) {
         const vehicleType =
           getVehicleType(
@@ -274,29 +362,37 @@ router.put(
             vehicleType
           )
         ) {
-          return res.status(400).json({
-            message:
-              "Vehicle type car, bike ya scooty hona chahiye",
-          });
+          return res
+            .status(400)
+            .json({
+              message:
+                "Vehicle type car, bike ya scooty hona chahiye",
+            });
         }
 
-        car.vehicleType = vehicleType;
+        car.vehicleType =
+          vehicleType;
       }
 
-      if (req.body.type !== undefined) {
+      if (
+        req.body.type !== undefined
+      ) {
         car.type = String(
           req.body.type
         ).trim();
       }
 
-      if (req.body.fuel !== undefined) {
+      if (
+        req.body.fuel !== undefined
+      ) {
         car.fuel = String(
           req.body.fuel
         ).trim();
       }
 
       if (
-        req.body.transmission !== undefined
+        req.body.transmission !==
+        undefined
       ) {
         car.transmission = String(
           req.body.transmission
@@ -304,14 +400,17 @@ router.put(
       }
 
       if (
-        req.body.description !== undefined
+        req.body.description !==
+        undefined
       ) {
         car.description = String(
           req.body.description
         ).trim();
       }
 
-      if (req.body.seats !== undefined) {
+      if (
+        req.body.seats !== undefined
+      ) {
         const seats = Number(
           req.body.seats
         );
@@ -321,47 +420,55 @@ router.put(
           seats < 1 ||
           seats > 20
         ) {
-          return res.status(400).json({
-            message:
-              "Seats 1 se 20 ke beech honi chahiye",
-          });
+          return res
+            .status(400)
+            .json({
+              message:
+                "Seats 1 se 20 ke beech honi chahiye",
+            });
         }
 
         car.seats = seats;
       }
 
       if (
-        req.body.pricePerDay !== undefined
+        req.body.pricePerDay !==
+        undefined
       ) {
         const pricePerDay = Number(
           req.body.pricePerDay
         );
 
         if (
-          !Number.isFinite(pricePerDay) ||
+          !Number.isFinite(
+            pricePerDay
+          ) ||
           pricePerDay < 0
         ) {
-          return res.status(400).json({
-            message:
-              "Valid price per day required",
-          });
+          return res
+            .status(400)
+            .json({
+              message:
+                "Valid price per day required",
+            });
         }
 
-        car.pricePerDay = pricePerDay;
+        car.pricePerDay =
+          pricePerDay;
       }
 
       if (
-        req.body.available !== undefined
+        req.body.available !==
+        undefined
       ) {
-        car.available = getBooleanValue(
-          req.body.available
-        );
+        car.available =
+          getBooleanValue(
+            req.body.available
+          );
       }
 
       await car.save();
 
-      // New image save hone ke baad
-      // purani image delete karo
       if (
         newUploadedImage &&
         oldImagePublicId
@@ -379,13 +486,22 @@ router.put(
       }
 
       const responseCar =
-        await Car.findById(car._id);
+        await Car.findById(
+          car._id
+        ).lean();
 
-      res.json(responseCar);
+      res.set(
+        "Cache-Control",
+        "no-store"
+      );
+
+      return res.json(
+        responseCar
+      );
     } catch (error) {
-      // Update fail hone par new uploaded image
-      // ko Cloudinary se remove karo
-      if (newUploadedImage?.public_id) {
+      if (
+        newUploadedImage?.public_id
+      ) {
         try {
           await deleteCloudinaryImage(
             newUploadedImage.public_id
@@ -398,25 +514,29 @@ router.put(
         }
       }
 
-      next(error);
+      return next(error);
     }
   }
 );
 
-// DELETE VEHICLE
+/**
+ * ADMIN: DELETE VEHICLE
+ */
 router.delete(
   "/:id",
   auth,
   admin,
   async (req, res, next) => {
     try {
-      const car = await Car.findById(
-        req.params.id
-      ).select("+imagePublicId");
+      const car =
+        await Car.findById(
+          req.params.id
+        ).select("+imagePublicId");
 
       if (!car) {
         return res.status(404).json({
-          message: "Vehicle not found",
+          message:
+            "Vehicle not found",
         });
       }
 
@@ -438,12 +558,17 @@ router.delete(
         }
       }
 
-      res.json({
+      res.set(
+        "Cache-Control",
+        "no-store"
+      );
+
+      return res.json({
         message:
           "Vehicle deleted successfully",
       });
     } catch (error) {
-      next(error);
+      return next(error);
     }
   }
 );
